@@ -137,12 +137,20 @@ impl<T: Ord + Copy + Debug> Graph<T> {
             loop_body,
         }
     }
+
+    pub fn compute_dominance_frontier(&self) -> BTreeMap<T, Vec<T>> {
+        let mut dom_relation = DomRelation::new(self);
+        dom_relation.compute_dominance_frontier(self);
+
+        dom_relation.dom_frontier
+    }
 }
 
-struct DomRelation<T: Ord + Copy + Debug> {
+pub struct DomRelation<T: Ord + Copy + Debug> {
     node_to_postorder_num: BTreeMap<T, usize>,
     postorder_num_to_node: Vec<T>,
     idom_tree: BTreeMap<usize, usize>,
+    dom_frontier: BTreeMap<T, Vec<T>>,
 }
 
 impl<T: Ord + Copy + Debug> DomRelation<T> {
@@ -153,6 +161,7 @@ impl<T: Ord + Copy + Debug> DomRelation<T> {
             node_to_postorder_num: BTreeMap::new(),
             postorder_num_to_node: vec![],
             idom_tree: BTreeMap::new(),
+            dom_frontier: BTreeMap::new(),
         };
         dom_relation.postorder_visit(graph);
         dom_relation.compute_dominators(graph);
@@ -213,6 +222,51 @@ impl<T: Ord + Copy + Debug> DomRelation<T> {
         }
     }
 
+    pub fn depth_first_traverse(&self, graph: &Graph<T>) -> Vec<T> {
+        let mut reversed_dom_tree: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+        let mut stack: Vec<&usize> = vec![];
+        let mut visited: BTreeSet<&usize> = BTreeSet::new();
+        let mut dfs_res = vec![];
+
+        // First reverse the storage of edges of the immediate dominators tree
+        for node in &graph.nodes {
+            let curr_num = self.node_to_postorder_num[node];
+            if !self.idom_tree.contains_key(&curr_num) {
+                continue;
+            }
+            let parent_num = self.idom_tree.get(&curr_num).unwrap();
+            if parent_num == &curr_num {
+                continue;
+            }
+
+            if let Some(child_nodes) = reversed_dom_tree.get_mut(parent_num) {
+                child_nodes.push(curr_num.clone());
+            } else {
+                reversed_dom_tree.insert(parent_num.clone(), vec![curr_num.clone()]);
+            }
+        }
+        // Then do depth first traversing
+        stack.push(&self.node_to_postorder_num[&graph.entry]);
+        while !stack.is_empty() {
+            let top_num = stack.pop().unwrap();
+            if !visited.contains(top_num) {
+                let top_node = self.postorder_num_to_node.get(top_num.clone()).unwrap();
+                dfs_res.push(top_node.clone());
+                visited.insert(top_num);
+
+                if !reversed_dom_tree.contains_key(top_num) {
+                    continue;
+                }
+                for v in reversed_dom_tree.get(&top_num).unwrap() {
+                    if !visited.contains(v) {
+                        stack.push(v);
+                    }
+                }
+            }
+        }
+        dfs_res
+    }
+
     fn compute_dominators(&mut self, graph: &Graph<T>) {
         let entry_num = self.entry_num();
         self.idom_tree.insert(entry_num, entry_num);
@@ -264,10 +318,36 @@ impl<T: Ord + Copy + Debug> DomRelation<T> {
         }
         finger1
     }
+
+    fn compute_immediate_dominator(&self, x: T) -> T {
+        let x_num = self.node_to_postorder_num[&x];
+        let imm_dom_num = self.idom_tree[&x_num];
+
+        self.postorder_num_to_node[imm_dom_num]
+    }
+
+    fn compute_dominance_frontier(&mut self, graph: &Graph<T>) {
+        for (u, v) in &graph.edges {
+            let mut x = u.clone();
+            while (&x == v) || (!self.is_dominated_by(v.clone(), x)) {
+                if let Some(df) = self.dom_frontier.get_mut(&x) {
+                    df.push(v.clone());
+                } else {
+                    self.dom_frontier.insert(x.clone(), vec![v.clone()]);
+                }
+                if (&x == v) && (x == graph.entry) {
+                    break;
+                }
+                x = self.compute_immediate_dominator(x);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
     use super::*;
 
     #[test]
@@ -357,5 +437,41 @@ mod tests {
 
         assert_eq!(outer_loop.loop_header, 2);
         assert_eq!(outer_loop.loop_body, vec![2, 3, 4, 5].into_iter().collect());
+    }
+
+    #[test]
+    fn test6() {
+        let nodes = vec![1, 2, 3, 4, 5, 6];
+        let edges = vec![
+            (1, 2),
+            (2, 3),
+            (2, 4),
+            (2, 6),
+            (3, 5),
+            (4, 5),
+            (5, 2),
+            (3, 2),
+        ];
+        let source = 1;
+        let graph = Graph::new(source, nodes, edges);
+        let mut dom_relation = DomRelation::new(&graph);
+        dom_relation.compute_dominators(&graph);
+        let dfs_res = dom_relation.depth_first_traverse(&graph);
+        // The expected output should be 1, 2, 6, 5, 4, 3
+        assert_eq!(dfs_res, vec![1, 2, 6, 5, 4, 3]);
+    }
+
+    #[test]
+    fn test7() {
+        let nodes = vec![0, 1, 2, 3, 4, 5];
+        let edges = vec![(0, 3), (0, 5), (3, 2), (5, 2), (2, 4)];
+        let source = 0;
+        let graph = Graph::new(source, nodes, edges);
+        let mut dom_relation = DomRelation::new(&graph);
+        dom_relation.compute_dominance_frontier(&graph);
+        assert_eq!(dom_relation.dom_frontier.get(&0), None);
+        assert_eq!(dom_relation.dom_frontier.get(&3), Some(&vec![2]));
+        assert_eq!(dom_relation.dom_frontier.get(&5), Some(&vec![2]));
+        assert_eq!(dom_relation.dom_frontier.get(&2), None);
     }
 }

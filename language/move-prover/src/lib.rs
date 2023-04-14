@@ -28,6 +28,7 @@ use move_stackless_bytecode::{
     function_target_pipeline::{FunctionTargetPipeline, FunctionTargetsHolder},
     pipeline_factory,
     read_write_set_analysis::{self, ReadWriteSetProcessor},
+    ssa_analysis::SSAConstructionProcessor,
 };
 use std::{
     collections::BTreeSet,
@@ -116,6 +117,13 @@ pub fn run_move_prover_with_model<W: WriteColor>(
     if options.run_escape {
         return {
             run_escape(env, &options, now);
+            Ok(())
+        };
+    }
+    // Same for ssa analysis
+    if options.run_ssa {
+        return {
+            run_ssa(env);
             Ok(())
         };
     }
@@ -422,4 +430,17 @@ fn run_escape(env: &GlobalEnv, options: &Options, now: Instant) {
     });
     println!("{}", String::from_utf8_lossy(&error_writer.into_inner()));
     info!("in ms, analysis took {:.3}", (end - start).as_millis())
+}
+
+fn run_ssa(env: &GlobalEnv) {
+    let mut targets = FunctionTargetsHolder::default();
+    for module_env in env.get_modules() {
+        for func_env in module_env.get_functions() {
+            targets.add_target(&func_env)
+        }
+    }
+    let mut pipeline = FunctionTargetPipeline::default();
+    pipeline.add_processor(SSAConstructionProcessor::new());
+    info!("generating ssa bytecodes");
+    pipeline.run(env, &mut targets);
 }

@@ -10,6 +10,7 @@ use crate::{
     stackless_bytecode::{Bytecode, Label},
 };
 use move_binary_format::file_format::CodeOffset;
+use move_model::ast::TempIndex;
 use petgraph::{dot::Dot, graph::Graph};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -224,6 +225,58 @@ impl StacklessControlFlowGraph {
         matches!(self.blocks[&block_id].content, BlockContent::Dummy)
     }
 
+    pub fn lower_of_block(&self, block_id: BlockId) -> CodeOffset {
+        match self.blocks[&block_id].content {
+            BlockContent::Basic { lower, upper: _ } => lower,
+            BlockContent::Dummy => u16::MAX,
+        }
+    }
+
+    pub fn upper_of_block(&self, block_id: BlockId) -> CodeOffset {
+        match self.blocks[&block_id].content {
+            BlockContent::Basic { lower: _, upper } => upper,
+            BlockContent::Dummy => u16::MAX,
+        }
+    }
+
+    pub fn collect_defs(&self, instrs: &[Bytecode]) -> BTreeMap<TempIndex, Vec<BlockId>> {
+        let mut defs_map: Map<TempIndex, Vec<BlockId>> = Map::new();
+        for (block_id, ..) in &self.blocks {
+            if self.is_dummmy(block_id.clone()) {
+                continue;
+            }
+            let instr_inds = self.instr_indexes(block_id.clone()).unwrap();
+            fn add_new_def(
+                dest: &TempIndex,
+                block_id: &BlockId,
+                defs_map: &mut BTreeMap<TempIndex, Vec<BlockId>>,
+            ) {
+                if defs_map.contains_key(dest) {
+                    match defs_map.get_mut(dest) {
+                        Some(block_vec) => block_vec.push(block_id.clone()),
+                        None => {}
+                    };
+                } else {
+                    defs_map.insert(dest.clone(), vec![block_id.clone()]);
+                }
+            }
+            for offset in instr_inds.rev() {
+                let instr = &instrs[offset as usize];
+                match instr {
+                    Bytecode::Load(_, dest, _) => add_new_def(dest, block_id, &mut defs_map),
+                    Bytecode::Assign(_, dest, ..) => add_new_def(dest, block_id, &mut defs_map),
+                    Bytecode::Call(_, dests, ..) => {
+                        for dest in dests {
+                            add_new_def(dest, block_id, &mut defs_map)
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        defs_map
+    }
+
     pub fn display(&self) {
         println!("+=======================+");
         println!("entry_block_id = {}", self.entry_block_id);
@@ -316,3 +369,5 @@ pub fn generate_cfg_in_dot_format<'env>(func_target: &'env FunctionTarget<'env>)
         })
     )
 }
+
+mod tests {}

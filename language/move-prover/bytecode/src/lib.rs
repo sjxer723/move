@@ -40,6 +40,7 @@ pub mod pipeline_factory;
 pub mod reaching_def_analysis;
 pub mod read_write_set_analysis;
 pub mod spec_instrumentation;
+pub mod ssa_analysis;
 pub mod stackless_bytecode;
 pub mod stackless_bytecode_generator;
 pub mod stackless_control_flow_graph;
