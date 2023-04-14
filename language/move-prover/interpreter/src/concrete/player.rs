@@ -395,6 +395,7 @@ impl<'env> FunctionContext<'env> {
             Bytecode::Prop(_, PropKind::Modifies, _) => {}
             // not-in-use as of now
             Bytecode::SaveSpecVar(..) => unreachable!(),
+            Bytecode::Phi(..) => {}
         }
         local_state.ready_pc_for_next_instruction();
         Ok(())

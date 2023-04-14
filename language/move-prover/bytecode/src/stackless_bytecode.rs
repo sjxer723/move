@@ -372,6 +372,8 @@ pub enum Bytecode {
     SaveMem(AttrId, MemoryLabel, QualifiedInstId<StructId>),
     SaveSpecVar(AttrId, MemoryLabel, QualifiedInstId<SpecVarId>),
     Prop(AttrId, PropKind, Exp),
+
+    Phi(AttrId, TempIndex, Vec<TempIndex>, TempIndex),
 }
 
 impl Bytecode {
@@ -389,7 +391,8 @@ impl Bytecode {
             | Nop(id)
             | SaveMem(id, ..)
             | SaveSpecVar(id, ..)
-            | Prop(id, ..) => *id,
+            | Prop(id, ..)
+            | Phi(id, ..) => *id,
         }
     }
 
@@ -844,6 +847,12 @@ impl<'env> fmt::Display for BytecodeDisplay<'env> {
                     PropKind::Assume => write!(f, "assume {}", exp_display)?,
                     PropKind::Assert => write!(f, "assert {}", exp_display)?,
                     PropKind::Modifies => write!(f, "modifies {}", exp_display)?,
+                }
+            }
+            Phi(_, dst, srcs, _) => {
+                write!(f, "{} := phi", self.lstr(*dst))?;
+                if !srcs.is_empty() {
+                    self.fmt_locals(f, srcs, true)?;
                 }
             }
         }

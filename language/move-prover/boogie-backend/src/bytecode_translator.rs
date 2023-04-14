@@ -1723,7 +1723,7 @@ impl<'env> FunctionTranslator<'env> {
                 emitln!(writer, "$abort_flag := true;");
                 emitln!(writer, "return;")
             }
-            Nop(..) => {}
+            Nop(..) | Phi(..) => {}
         }
         emitln!(writer);
     }

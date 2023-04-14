@@ -320,7 +320,7 @@ impl<'a> TransferFunctions for EscapeAnalysis<'a> {
                 }
             }
             Abort(..) | SaveMem(..) | Prop(..) | SaveSpecVar(..) | Branch(..) | Jump(..)
-            | Label(..) | Nop(..) => {
+            | Label(..) | Nop(..) | Phi(..) => {
                 // these operations do not assign any locals
             }
         }

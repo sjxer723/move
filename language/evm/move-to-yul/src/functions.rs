@@ -571,7 +571,12 @@ impl<'a> FunctionGenerator<'a> {
                 }
             }
 
-            Label(_, _) | Nop(_) | SaveMem(_, _, _) | SaveSpecVar(_, _, _) | Prop(_, _, _) => {
+            Label(_, _)
+            | Nop(_)
+            | SaveMem(_, _, _)
+            | SaveSpecVar(_, _, _)
+            | Prop(_, _, _)
+            | Phi(_, _, _, _) => {
                 // These opcodes are not needed, ignore them
             }
         }

@@ -603,7 +603,7 @@ impl<'a> TransferFunctions for ReadWriteSetAnalysis<'a> {
             }
             Abort(..) => {}
             SaveMem(..) | Prop(..) | SaveSpecVar(..) | Branch(..) | Jump(..) | Label(..)
-            | Nop(..) => (),
+            | Nop(..) | Phi(..) => (),
         }
     }
 }
